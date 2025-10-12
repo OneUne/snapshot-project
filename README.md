@@ -4,54 +4,85 @@
 > Have you ever wondered how you look while you're working?
 
 화면과 웹캠을 자동으로 캡처하여 작업 중 내 모습을 기록하는 도구입니다.
-
 A tool that automatically captures your screen and webcam to record how you look while working.
 
 ## Features
 
 - 🖥️ **화면 캡처** - 전체 화면 또는 특정 창을 자동으로 스크린샷
+  **Screen Capture** - Automatically takes screenshots of the entire screen or specific windows
 - 📸 **웹캠 캡처** - 작업 중인 당신의 모습을 자동으로 촬영
+  **Webcam Capture** - Automatically takes photos of you while working
 - ⏰ **자동 실행** - 설정된 간격으로 자동으로 스냅샷 생성
+  **Auto Run** - Automatically creates snapshots at set intervals
 - 📁 **자동 정리** - 날짜별로 폴더에 정리되어 저장
+  **Auto Organization** - Automatically organized and saved in folders by date
+- 🎬 **타임랩스 생성** - 스냅샷을 자동으로 타임랩스 영상으로 변환
+  **Timelapse Creation** - Automatically converts snapshots into a timelapse video
 
 ## Platform
 
 ⚠️ **macOS only** - 현재 macOS에서만 동작합니다.
+⚠️ **macOS only** - Currently only works on macOS.
 
 이 도구는 macOS의 `screencapture` 명령어를 사용하기 때문에 macOS 환경에서만 작동합니다.
 
 This tool uses macOS's `screencapture` command, so it only works on macOS.
 
+## Requirements
+
+- **Node.js** - JavaScript 런타임 / JavaScript runtime
+- **FFmpeg** - 이미지 및 영상 처리 / Image and video processing
+
+### FFmpeg 설치 / Installing FFmpeg
+
+```bash
+# Homebrew를 사용하여 설치 / Install using Homebrew
+brew install ffmpeg
+```
+
 ## Installation
 
 ```bash
-# Clone this repository
-git clone https://github.com/YOUR_USERNAME/snapshot-project.git
+# 저장소 클론 / Clone this repository
+git clone https://github.com/OneUne/snapshot-project.git
 cd snapshot-project
 
-# Node.js가 설치되어 있는지 확인
+# Node.js 설치 확인 / Check Node.js installation
 node --version
 ```
 
 ## Usage
 
+### 스냅샷 자동 촬영 / Auto Snapshot
+
 ```bash
 node auto-snapshot.js
 ```
 
-스냅샷은 `snapshots/YYYY-MM-DD/` 폴더에 저장됩니다.
+- 스냅샷은 `snapshots/YYYY-MM-DD/` 폴더에 저장됩니다
+  Snapshots are saved in the `snapshots/YYYY-MM-DD/` folder
+- `Ctrl+C`로 종료 시 자동으로 타임랩스 영상이 생성됩니다
+  When stopped with `Ctrl+C`, a timelapse video is automatically created
 
-Snapshots are saved in the `snapshots/YYYY-MM-DD/` folder.
+### 타임랩스 영상만 생성 / Create Timelapse Video Only
+
+```bash
+# 오늘 촬영한 스냅샷으로 영상 생성 / Create video from today's snapshots
+node auto-snapshot.js video
+
+# 특정 날짜의 스냅샷으로 영상 생성 (코드 수정 필요) / Create video from specific date (code modification required)
+# Edit the script to pass a custom folder path
+```
 
 ## Configuration
 
 `auto-snapshot.js` 파일을 수정하여 다음 설정을 변경할 수 있습니다:
-
 You can modify the following settings by editing the `auto-snapshot.js` file:
 
-- 캡처 간격 (Capture interval)
-- 저장 경로 (Save path)
-- 스크린샷 형식 (Screenshot format)
+- 캡처 간격 (기본: 30초) / Capture interval (default: 30 seconds)
+- 저장 경로 / Save path
+- 웹캠 해상도 / Webcam resolution
+- 타임랩스 프레임레이트 (기본: 33fps) / Timelapse framerate (default: 33fps)
 
 ## License
 
@@ -59,5 +90,9 @@ MIT
 
 ---
 
-💡 **Tip**: 장시간 작업 후 타임랩스 영상을 만들어보세요!
-After a long work session, try creating a timelapse video!
+💡 **Tip**
+장시간 작업 후 `Ctrl+C`로 종료하면 자동으로 타임랩스 영상이 생성됩니다!
+영상만 따로 만들고 싶다면 `node auto-snapshot.js video` 명령어를 사용하세요.
+
+When you stop with `Ctrl+C` after a long work session, a timelapse video is automatically created!
+If you only want to create a video, use the `node auto-snapshot.js video` command.
