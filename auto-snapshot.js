@@ -3,8 +3,14 @@ const { exec } = require("child_process");
 const { promisify } = require("util");
 const fs = require("fs");
 
+const sharp = require("sharp");
+
 const execAsync = promisify(exec);
 const SAVE_DIR = "./snapshots";
+
+// --monitors=N 파라미터 파싱 (기본값: 1)
+const monitorsArg = process.argv.find((a) => a.startsWith("--monitors="));
+const MONITOR_COUNT = monitorsArg ? parseInt(monitorsArg.split("=")[1], 10) : 1;
 
 function getTodayFolder() {
   const now = new Date();
@@ -22,8 +28,11 @@ async function takeSnapshot() {
     .padStart(2, "0")}_${now.getSeconds().toString().padStart(2, "0")}`;
   const todayFolder = getTodayFolder();
 
+  // 임시 파일 목록 (나중에 삭제)
+  const tempFiles = ["cam.jpg", "combined.jpg"];
+
   try {
-    console.log("📸 스냅샷 촬영 중...");
+    console.log(`📸 스냅샷 촬영 중... (모니터 ${MONITOR_COUNT}대)`);
 
     if (!fs.existsSync(todayFolder)) {
       fs.mkdirSync(todayFolder, { recursive: true });
@@ -32,43 +41,92 @@ async function takeSnapshot() {
     // 1. 웹캠 촬영
     console.log("1. 웹캠 촬영...");
     await execAsync(
-      'ffmpeg -f avfoundation -video_size 1280x720 -framerate 30 -i "0:" -vframes 1 -y cam.jpg'
+      'ffmpeg -f avfoundation -video_size 1280x720 -framerate 30 -i "0:" -vframes 1 -y cam.jpg',
     );
 
-    // 2~5. 나머지 과정들...
-    console.log("2. 스크린샷 촬영...");
-    await execAsync("screencapture screen.jpg");
+    // 2. 모니터별 스크린샷 촬영 (실패한 디스플레이는 건너뜀)
+    console.log(`2. 스크린샷 촬영 (최대 ${MONITOR_COUNT}대)...`);
+    const capturedFiles = [];
+    for (let i = 1; i <= MONITOR_COUNT; i++) {
+      const rawFile = `screen_${i}.jpg`;
+      try {
+        await execAsync(`screencapture -D ${i} ${rawFile}`);
+        // 파일이 실제로 생성됐는지 확인
+        if (fs.existsSync(rawFile) && fs.statSync(rawFile).size > 0) {
+          tempFiles.push(rawFile);
+          capturedFiles.push(rawFile);
+          console.log(`   ✅ 디스플레이 ${i} 캡처 완료`);
+        } else {
+          console.log(`   ⚠️  디스플레이 ${i} 없음 (건너뜀)`);
+        }
+      } catch {
+        console.log(`   ⚠️  디스플레이 ${i} 캡처 실패 (건너뜀)`);
+      }
+    }
+
+    if (capturedFiles.length === 0) {
+      throw new Error("캡처된 모니터가 없습니다.");
+    }
+    console.log(`   → ${capturedFiles.length}대 캡처됨`);
+
+    // 3. 모니터 이미지 가로로 합치기 (캡처된 수에 따라 높이 축소)
+    console.log("3. 모니터 이미지 합성...");
+    const n = capturedFiles.length;
+    const targetH = n >= 4 ? 160 : n === 3 ? 200 : n === 2 ? 270 : 400;
+    const screenCombinedFile = "screens_combined.jpg";
+    tempFiles.push(screenCombinedFile);
+
+    if (n === 1) {
+      await execAsync(
+        `ffmpeg -i ${capturedFiles[0]} -vf scale=-1:${targetH} -y ${screenCombinedFile}`,
+      );
+    } else {
+      const inputs = capturedFiles.map((f) => `-i ${f}`).join(" ");
+      const scaleFilters = capturedFiles
+        .map((_, i) => `[${i}:v]scale=-1:${targetH}[v${i}]`)
+        .join(";");
+      const stackInputs = capturedFiles.map((_, i) => `[v${i}]`).join("");
+      await execAsync(
+        `ffmpeg ${inputs} -filter_complex "${scaleFilters};${stackInputs}hstack=inputs=${n}" -y ${screenCombinedFile}`,
+      );
+    }
+
+    // 4. 웹캠 + 스크린 합성
+    console.log("4. 웹캠 오버레이 합성...");
     await execAsync(
-      "ffmpeg -i screen.jpg -vf scale=iw*0.2:ih*0.2 -y screen_small.jpg"
+      `ffmpeg -i cam.jpg -i ${screenCombinedFile} -filter_complex "[0:v][1:v]overlay=10:10" -y combined.jpg`,
     );
 
-    console.log("3. 이미지 합성...");
-    await execAsync(
-      `ffmpeg -i cam.jpg -i screen_small.jpg -filter_complex "[0:v][1:v]overlay=10:10" -y combined.jpg`
-    );
-
-    console.log("4. 타임스탬프 추가...");
-    const timeDisplay = `${now.getHours().toString().padStart(2, "0")}\\:${now
+    // 5. 타임스탬프 추가 (sharp + SVG)
+    console.log("5. 타임스탬프 추가...");
+    const timeDisplay = `${now.getHours().toString().padStart(2, "0")}:${now
       .getMinutes()
       .toString()
-      .padStart(2, "0")}\\:${now.getSeconds().toString().padStart(2, "0")}`;
-    await execAsync(
-      `ffmpeg -i combined.jpg -vf "drawtext=text='${timeDisplay}':fontsize=30:fontcolor=white:x=w-tw-30:y=h-th-30:box=1:boxcolor=black@0.8:boxborderw=5" -y "${todayFolder}/snapshot_${timestamp}.jpg"`
+      .padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}`;
+    const finalPath = `${todayFolder}/snapshot_${timestamp}.jpg`;
+    const svgText = Buffer.from(
+      `<svg width="160" height="44">
+        <rect x="0" y="0" width="160" height="44" rx="4" fill="rgba(0,0,0,0.7)"/>
+        <text x="80" y="30" font-family="monospace" font-size="22" fill="white" text-anchor="middle">${timeDisplay}</text>
+      </svg>`,
     );
+    const { width, height } = await sharp("combined.jpg").metadata();
+    await sharp("combined.jpg")
+      .composite([{ input: svgText, top: height - 54, left: width - 170 }])
+      .jpeg({ quality: 90 })
+      .toFile(finalPath);
 
-    await execAsync("rm -f cam.jpg screen.jpg screen_small.jpg combined.jpg");
+    await execAsync(`rm -f ${tempFiles.join(" ")}`);
     console.log(`✅ 완료: ${todayFolder}/snapshot_${timestamp}.jpg`);
   } catch (error) {
+    // 에러 시에도 임시 파일 정리 시도
+    execAsync(`rm -f ${tempFiles.join(" ")}`).catch(() => {});
     console.error("❌ 에러:", error.message);
   }
 }
 
 async function main() {
-  // 🔇 처음에 한 번만 소리 끄기
-  // console.log("🔇 카메라 셔터음 끄는 중...");
-  // await execAsync('sudo nvram SystemAudioVolume=" "');
-
-  console.log("📷 스냅샷 촬영 시작!");
+  console.log(`📷 스냅샷 촬영 시작! (모니터 ${MONITOR_COUNT}대)`);
   setInterval(() => {
     takeSnapshot();
   }, 30_000);
@@ -107,7 +165,7 @@ async function createVideoFromSnapshots(folderPath = null) {
     const outputFile = `${targetFolder}/timelapse_${Date.now()}.mp4`;
 
     await execAsync(
-      `ffmpeg -framerate 33 -pattern_type glob -i '${targetFolder}/*.jpg' -c:v libx264 -pix_fmt yuv420p -y "${outputFile}"`
+      `ffmpeg -framerate 33 -pattern_type glob -i '${targetFolder}/*.jpg' -c:v libx264 -pix_fmt yuv420p -y "${outputFile}"`,
     );
 
     console.log(`✅ 영상 생성 완료: ${outputFile}`);
@@ -125,8 +183,8 @@ process.on("SIGINT", async () => {
   process.exit();
 });
 
-// 사용법: node auto-snapshot.js video
-if (process.argv[2] === "video") {
+// 사용법: node auto-snapshot.js [--monitors=N] [video]
+if (process.argv.includes("video")) {
   createVideoFromSnapshots();
 } else {
   main();

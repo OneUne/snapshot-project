@@ -32,13 +32,22 @@ This tool uses macOS's `screencapture` command, so it only works on macOS.
 
 - **Node.js** - JavaScript 런타임 / JavaScript runtime
 - **FFmpeg** - 이미지 및 영상 처리 / Image and video processing
+- **sharp** - 타임스탬프 텍스트 합성 (npm으로 자동 설치) / Timestamp text overlay (auto-installed via npm)
 
 ### FFmpeg 설치 / Installing FFmpeg
 
 ```bash
-# Homebrew를 사용하여 설치 / Install using Homebrew
 brew install ffmpeg
 ```
+
+### 설치 / Installation
+
+```bash
+npm install
+```
+
+sharp가 자동으로 설치되며, 타임스탬프 텍스트 합성에 사용됩니다.
+sharp is installed automatically and used for timestamp text overlay.
 
 ## Installation
 
@@ -56,11 +65,18 @@ node --version
 ### 스냅샷 자동 촬영 / Auto Snapshot
 
 ```bash
+# 모니터 1대 (기본값) / Single monitor (default)
 node auto-snapshot.js
+
+# 모니터 N대 / Multiple monitors
+node auto-snapshot.js --monitors=2
+node auto-snapshot.js --monitors=3
 ```
 
 - 스냅샷은 `snapshots/YYYY-MM-DD/` 폴더에 저장됩니다
   Snapshots are saved in the `snapshots/YYYY-MM-DD/` folder
+- 멀티 모니터 사용 시 모든 화면을 가로로 합쳐서 저장됩니다
+  With multiple monitors, all screens are combined horizontally
 - `Ctrl+C`로 종료 시 자동으로 타임랩스 영상이 생성됩니다
   When stopped with `Ctrl+C`, a timelapse video is automatically created
 
